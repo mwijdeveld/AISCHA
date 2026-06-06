@@ -1,0 +1,1397 @@
+rm(list=ls())
+
+##### Load relevant packages #####
+library(scales)
+library(rio)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(foreign)
+library(devtools)
+library(tidyr)
+library(rlang)
+library(digest)
+library(DescTools)
+library(splines)
+library(ordinal)
+library(tidyverse)
+library(nlme)
+library(splines)
+library(grid)
+library(ggthemes)
+library(stringi)
+library(xlsx)
+library(png)
+library(gridExtra)
+library(kader)
+library(car)
+library(lme4)
+library(lmerTest)
+library(readxl)
+library(stargazer)
+library(broom)
+library(dplyr)
+library(emmeans)
+library(magrittr)
+library(MuMIn)
+library(knitr)
+library(ggeffects)
+library(naniar)
+library(gdata)
+library(pbkrtest)
+library(patchwork)
+library(ggsci)
+library(corrplot)
+library(rstatix)
+library(plotrix)
+library(effsize)
+library(pwr)
+library(tibble)
+library(tableone)
+library(gtsummary)
+
+##### Import dataset #####
+home <- "G:/diva/Promovendi/Max research group/2. Researchers/Madelief Wijdeveld/PhD/2019_211 AISCHA/Data analyse/"
+results <- "G:/diva/Promovendi/Max research group/2. Researchers/Madelief Wijdeveld/PhD/2019_211 AISCHA/Data Management/"
+setwd(results)
+data <- rio :: import("AISCHA_masterfile.xlsx")
+d_long <- rio :: import("AISCHA_masterfile_long.xlsx")
+
+##### Convert dataset to long formats, previously done and imported later in script #####
+d_longGlucose <- data %>%
+  pivot_longer(
+    cols = starts_with("Glucose"),
+    names_to = "time",
+    names_prefix = "Glucose_T_",
+    values_to = "Glucose",
+    values_drop_na = F
+  )
+
+rio :: export(d_longGlucose, "d_longGlucose.xlsx")
+
+# For lean group #
+d_longGlucose_lean <- lean %>%
+  pivot_longer(
+    cols = starts_with("Glucose"),
+    names_to = "time",
+    names_prefix = "Glucose_T_",
+    values_to = "Glucose",
+    values_drop_na = F
+  )
+
+rio :: export(d_longGlucose_lean, "d_longGlucose_lean.xlsx")
+
+# For metsyn group #
+d_longGlucose_metsyn <- MetSyn %>%
+  pivot_longer(
+    cols = starts_with("Glucose"),
+    names_to = "time",
+    names_prefix = "Glucose_T_",
+    values_to = "Glucose",
+    values_drop_na = F
+  )
+
+rio :: export(d_longGlucose_metsyn, "d_longGlucose_metsyn.xlsx")
+
+##### Convert data to long format for GLP1 #####
+d_longGLP <- data %>%
+  pivot_longer(
+    cols = starts_with("GLP1"),
+    names_to = "time",
+    names_prefix = "GLP1_T_",
+    values_to = "GLP1",
+    values_drop_na = F
+  )
+
+rio :: export(d_longGLP, "d_longGLP1.xlsx")
+
+##### Convert VAS data to long format #####
+d_longVAS <- data %>%
+  pivot_longer(
+    cols = starts_with("VAS"),
+    names_to = "time",
+    names_prefix = "VAS_hunger_",
+    values_to = "VAS_hunger",
+    values_drop_na = F
+  )
+
+rio :: export(d_longVAS, "d_longVAS.xlsx")
+
+##### Convert data to long format Insulin #####
+d_longInsulin <- data %>%
+  pivot_longer(
+    cols = starts_with("Insulin"),
+    names_to = "time",
+    names_prefix = "Insulin_T_",
+    values_to = "Insulin",
+    values_drop_na = F
+  )
+
+rio :: export(d_longInsulin, "d_longInsulin.xlsx")
+
+# For lean group #
+d_longInsulin_lean <- data_lean %>%
+  pivot_longer(
+    cols = starts_with("Insulin"),
+    names_to = "time",
+    names_prefix = "Insulin_T_",
+    values_to = "Insulin",
+    values_drop_na = F
+  )
+
+rio :: export(d_longInsulin_lean, "d_longInsulin_lean.xlsx")
+
+# For metsyn group #
+d_longInsulin_metsyn <- data_metsyn %>%
+  pivot_longer(
+    cols = starts_with("Insulin"),
+    names_to = "time",
+    names_prefix = "Insulin_T_",
+    values_to = "Insulin",
+    values_drop_na = F
+  )
+
+rio :: export(d_longInsulin_metsyn, "d_longInsulin_metsyn.xlsx")
+
+##### Convert data to long format Acetate #####
+d_longAcetate <- data %>%
+  pivot_longer(
+    cols = starts_with("Acetate"),
+    names_to = "time",
+    names_prefix = "Acetate_T_",
+    values_to = "Acetate",
+    values_drop_na = F
+  )
+
+rio :: export(d_longInsulin, "d_longAcetate.xlsx")
+
+##### Remove empty columns #####
+data <- data[,colSums(is.na(data))<nrow(data)]
+
+##### Remove outliers #####
+for(i in 1:c(107:118)){
+  positie <- d_long[, i]
+  outlier.LThr.STR <- mean(positie, na.rm=TRUE) - 3*sd(positie, na.rm=TRUE) # lower threshold
+  outlier.UThr.STR <- mean(positie, na.rm=TRUE) + 3*sd(positie, na.rm=TRUE) # upper threshold
+  
+  STR_removed <- sum(positie>outlier.UThr.STR, na.rm=TRUE) + sum(positie<outlier.LThr.STR, na.rm=TRUE)
+  d_long[i][d_long[i]>outlier.UThr.STR] <- NA
+  d_long[i][d_long[i]<outlier.LThr.STR] <- NA
+}
+
+# Import long datasets, transformation previously performed
+setwd(home)
+
+d_longGlucose <- rio :: import("d_longGlucose.xlsx")
+d_longInsulin <- rio :: import("d_longInsulin.xlsx")
+d_longGLP <- rio :: import("d_longGLP1.xlsx")
+d_longVAS <- rio :: import("d_longVAS.xlsx")
+d_longAcetate <- rio :: import("d_longAcetate.xlsx")
+d_longAI <- rio :: import("d_longAI.xlsx")
+d_longAI <- rio :: import("d_longAI_NoOutlier.xlsx")
+d_longPH <- rio :: import("d_longPH.xlsx")
+d_longLipids <- rio :: import("d_longLipids.xlsx")
+d_longUrine <- rio  :: import("d_longUrine.xlsx")
+
+##### Create Table one #####
+setwd(results)
+setwd('Castor/')
+Castor <- rio :: import('AISCHA_excel_export_20230424080522.xlsx')
+
+Castor$Age <- as.numeric(Castor$Age)
+Castor$Height <- as.numeric(Castor$Height)
+Castor$Weight <- as.numeric(Castor$Weight)
+Castor$BMI <- as.numeric(Castor$BMI)
+Castor$Waist <- as.numeric(Castor$Waist)
+Castor$Hip <- as.numeric(Castor$Hip)
+Castor$SBP <- as.numeric(Castor$SBP)
+Castor$DBP <- as.numeric(Castor$DBP)
+Castor$BPM <- as.numeric(Castor$BPM)
+Castor$BIA_FatPerc <- as.numeric(Castor$BIA_FatPerc)
+Castor$Screening_glucose <- as.numeric(Castor$Screening_glucose)
+Castor$Screening_insulin <- as.numeric(Castor$Screening_insulin)
+Castor$HOMA_IR <- as.numeric(Castor$HOMA_IR)
+Castor$Cholesterol <- as.numeric(Castor$Cholesterol)
+Castor$HDL <- as.numeric(Castor$HDL)
+Castor$LDL <- as.numeric(Castor$LDL)
+Castor$Triglyceride <- as.numeric(Castor$Triglyceride)
+
+Castor$Screening_glucose <- as.numeric(Castor$Screening_glucose)
+Castor$Screening_insulin <- as.numeric(Castor$Screening_insulin)
+
+CreateTableOne(vars = c("Age", "Height", "Weight", "BMI", "Waist", "Hip", "SBP", "DBP", "BPM", "BIA_FatPerc", "Screening_glucose", "Screening_insulin", "HOMA_IR", "Cholesterol", "HDL", "LDL", "Triglyceride"), strata = "BMI_class", data = Castor, includeNA = FALSE)
+
+##### Set correct layout for plots #####
+theme_Publication <- function(base_size=12, base_family="sans") {
+  (theme_foundation(base_size=base_size, base_family=base_family)
+   + theme(plot.title = element_text(face = "bold",
+                                     size = rel(1.2), hjust = 0.5),
+           text = element_text(),
+           panel.background = element_rect(colour = NA),
+           plot.background = element_rect(colour = NA),
+           panel.border = element_rect(colour = NA),
+           axis.title = element_text(face='bold',size = rel(1)),
+           axis.title.y = element_text(angle=90,vjust =2),
+           axis.title.x = element_text(vjust = -0.2),
+           axis.text = element_text(), 
+           axis.line = element_line(colour="black"),
+           axis.ticks = element_line(),
+           panel.grid.major = element_line(colour="#f0f0f0"),
+           panel.grid.minor = element_blank(),
+           legend.key = element_rect(colour = NA),
+           legend.position = "right",
+           legend.key.size= unit(0.2, "cm"),
+           legend.spacing  = unit(0, "cm"),
+           legend.title = element_text(face='bold'),
+           plot.margin=unit(c(10,5,5,5),"mm"),
+           strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0"),
+           strip.text = element_text(face="bold")
+   ))
+}
+
+##### Plot missing data #####
+dat2 <- select(data, c('Subject',starts_with('Glucose')))
+missing <- apply(dat2,1, function(x) sum(is.na(x)))
+missing
+sum(missing)
+plot(missing)
+hist(missing)
+nrow(dat2)
+
+dat2 <- select(data, c('Subject',starts_with('Insulin')))
+missing <- apply(dat2,1, function(x) sum(is.na(x)))
+missing
+sum(missing)
+plot(missing)
+hist(missing)
+nrow(dat2)
+
+d_long %>%
+  mutate(across(.cols = -Condition, .fns = is.na)) %>%
+  # then create a summary table tabulating missing data rates
+  tbl_summary(by = Condition) %>%
+  modify_caption("Missing Data Counts") %>%
+  as_kable()
+
+##### Create -0.25h as timepoint for Glucose baseline sample #####
+d_longGlucose$time[d_longGlucose$time =='min15'] <- -15
+d_longGlucose$time <- as.numeric(d_longGlucose$time)
+d_longGlucose$time
+
+##### Create -0.90min as timepoint for Lipids baseline sample #####
+d_longLipids$time[d_longLipids$time =='min15'] <- -90
+d_longLipids$time <- as.numeric(d_longLipids$time)
+d_longLipids$time
+
+##### Create -30 and -90min timepoint for the acetate infusion period #####
+d_longAcetate$time[d_longAcetate$time =='baseline'] <- -90
+d_longAcetate$time[d_longAcetate$time =='min30'] <- -30
+d_longAcetate$time <- as.numeric(d_longAcetate$time)
+d_longAcetate$time
+
+##### Convert group and condition to factor #####
+d_longLipids$Group <- as.factor(d_longLipids$Group)
+d_longGlucose$Group <- factor(d_longGlucose$Group)
+d_longGlucose$Condition <- factor(d_longGlucose$Condition)
+d_longAcetate$Group <- factor(d_longAcetate$Group)
+d_longAI$Group <- factor(d_longAI$Group)
+d_longPH$Group <- factor(d_longPH$Group)
+d_longUrine$Group <- factor(d_longUrine$Group)
+
+##### Convert time to numeric variable #####
+d_longAI$time <- as.numeric(d_longAI$time)
+d_longPH$time <- as.numeric(d_longPH$time)
+d_longGlucose$time <- as.numeric(d_longGlucose$time)
+
+##### Subset a dataframe with exclusively Lean respectively MetSyn subjects #####
+data_lean <- data %>% filter(BMI_class == 'Lean')
+data_metsyn <- data %>% filter(BMI_class == 'MetSyn')
+
+d_long_lean <- d_long %>% filter(BMI_class == 'Lean')
+d_long_metsyn <- d_long %>% filter(BMI_class == 'MetSyn')
+
+##### Statistics for figure 1 #####
+##### Compare baseline acetate in Lean group vs MetSyn group
+test <- t.test(d_long$Acetate_T_baseline[d_long$BMI_class=='Lean' & d_long$Condition=='Acetate'], d_long$Acetate_T_baseline[d_long$BMI_class=='MetSyn' & d_long$Condition=='Acetate'], paired = F)
+test
+
+##### LMM pooled data lean+metsyn for ACETATE fluctuations over time #####
+# * PRIMARY OUTCOME *
+# doesn't work with missing values, remove them
+wo_na <- d_longAcetate %>% filter(Acetate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Acetate ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant <0.0001
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(Acetate ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1)# condition is, as expected, also super significant <0.0001
+
+intervals(m1)
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group & BMI group
+m2 = lme(Acetate ~ ns(time, df = 3) * Condition * BMI_class, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2)
+
+intervals(m2)# time condition BMI_class interaction is ns: 0.8450
+
+# model 3 -> model 1 + Gender & Age (as covariates)
+m3 = lme(Acetate ~ ns(time, df = 3) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is still super significant <.0001
+
+# model 4 -> model 3 + interactions between Age and Time; and between Gender and Time
+m4 = lme(Acetate ~ ns(time, df = 3) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is super significant <.0001
+
+# model 5 -> model 2 + Gender & Age (as covariates)
+m5 = lme(Acetate ~ ns(time, df = 3) * Condition * BMI_class + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition BMI_class interaction is ns: 0.8421
+
+# model 6 -> model 5 + interactions between Age and Time; and between Gender and Time
+m6 = lme(Acetate ~ ns(time, df = 3) * Condition * BMI_class + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m6) # time condition BMI_class interaction is still ns: 0.8417
+
+##### Create figure 1 #####
+##### Lineplot with errorbars voor acetaat pooled ##### 
+pl1 <- ggplot(data=d_longAcetate, aes(x = time, y = Acetate))+
+  #geom_smooth(aes(group = Group, col = Group), method = "loess", level=0.68)+
+  geom_point(aes(x=time, y=Mean,
+                 col=Condition), size = 2)+
+  #geom_boxplot(aes(x = time, y = Glucose, color = Group), outlier.colour = NA, show.legend = F, fatten = 1, lwd = 1.2)+
+  geom_line(data = d_longAcetate, aes(x=time, y=Mean, col=Condition), size = 1)+
+  geom_errorbar(data = d_longAcetate, aes(ymin = Mean_min_SE, ymax = Mean_plus_SE, col=Condition), width = 4, size = 1)+
+  scale_x_continuous(breaks=c(-90, -30, 30, 60, 90, 120))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c(pal_nejm()(2)[2], pal_nejm()(2)[1]))+
+  labs(x='Time (min)', title='Acetate response upon SMMT', y='Acetate (umol/L)')+
+  theme_Publication()+
+  annotate("text", x=75, y=7.1, label = "p < 0.0001", fontface = 2)+
+  ylim(0, 600)+
+  #theme(panel.grid.major.x = element_line(size = 0.5, color='grey'))+
+  theme(legend.position = 'right')
+pl1
+
+pl1 <- pl1+ theme(panel.background = element_blank())
+
+ggsave(pl1, filename = 'Figure1.pdf', width = 7, height = 5, device = 'pdf')
+ggsave(pl1, filename = 'Figure1.png', width = 7, height = 5, device = 'png')
+ggsave(pl1, filename = 'Figure1.jpg', width = 7, height = 5, device = 'jpeg')
+
+
+##### Statistics for figure 2 #####
+# * SECONDARY OUTCOME *
+##### Compare baseline urinary excretion in Lean group vs MetSyn group
+test <- t.test(d_longUrine$UrineAcetate[d_longUrine$BMI_class=='Lean' & d_longUrine$time=='Baseline'], d_long$Acetate_T_baseline[d_longUrine$BMI_class=='MetSyn' & d_longUrine$time=='Baseline'], paired = F)
+test
+
+##### Create figure 2 #####
+##### Boxplot comparing acetate uptake per BMI group in Acetate condition #####
+d_long1 <- d_long %>% filter(Condition=='Acetate')
+comps <- list(c('Lean', 'MetSyn'))
+pl <- ggplot(data=d_long1, aes(x = BMI_class, y = Uptake_fraction))+
+  geom_boxplot(aes(x = BMI_class, y = Uptake_fraction, color = BMI_class), outlier.colour = NA, fatten = 1, lwd = 1.2)+
+  geom_jitter(aes(fill = BMI_class), shape=21, color='black', position = position_jitter(width = 0.2, height = 0), show.legend = F)+
+  scale_color_manual(labels = c("Lean", "Metsyn"), values=c("#0072B5FF", "#20854EFF"))+
+  scale_fill_manual(labels = c("Lean", "Metsyn"), values=c("#0072B5FF", "#20854EFF"))+
+  labs(x='Group', title='Acetate fraction taken up upon infusion', y='Acetate uptake fraction')+
+  theme_Publication()+
+  stat_compare_means(comparisons = comps, paired = F, method = 't.test', size = 6, label.y = 1.005)+
+  #theme(panel.grid.major.x = element_line(size = 0.5, color='grey'))+
+  theme(legend.position = 'right')+
+  theme(plot.title = element_text(size = 19, face = "bold"),
+        axis.text=element_text(size=18),
+        axis.title.x=element_text(size=16,face="bold"),
+        axis.title.y=element_text(size=16,face="bold"),
+        legend.text=element_text(size=14),
+        legend.title=element_text(size=14))
+pl
+
+pl <- pl + guides(color=guide_legend(title="Group"))
+
+Labels <- c("Lean", "Metsyn")
+pl <- pl + scale_x_discrete(labels = Labels)
+pl <- pl + theme(panel.background = element_blank())
+
+##### Lineplot comparing urinary acetate excretion per condition #####
+pl1 <- ggplot(data=d_longUrine, aes(x=time, y=Mean, group=Condition, colour=Condition))+
+  geom_line(size = 1.4)+
+  geom_point(size = 3)+
+  geom_errorbar(aes(ymin = Mean_min_SE, ymax = Mean_plus_SE, col=Condition), size = 1.4, width = 0.12)+
+  scale_x_discrete(breaks=c("Baseline", "Infusion"))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c(pal_nejm()(2)[2], pal_nejm()(2)[1]))+
+  labs(x='Timepoint', title='Urinary acetate excretion', y='Urine acetate (umol/L)')+
+  theme_Publication()+
+  annotate("text", x=2.33, y=180, label = "p = 0.78", fontface = 2, size = 5)+
+  annotate("text", x=2.33, y=1267, label = "*p = 2.9e-11", fontface = 2, size = 5)+
+  theme(panel.grid.major.x = element_line(size = 0.75, color='grey'))+
+  theme(legend.position = 'right')+
+  theme(plot.title = element_text(size = 19, face = "bold"),
+        axis.text=element_text(size=18),
+        axis.title.x=element_text(size=16,face="bold"),
+        axis.title.y=element_text(size=16,face="bold"),
+        legend.text=element_text(size=14),
+        legend.title=element_text(size=14))
+pl1
+
+pl1 <- pl1 + theme(panel.background = element_blank())
+
+plots <- ggarrange(pl1, pl,
+                   labels = c("A", "B"), 
+                   ncol = 2, nrow = 1, legend = "bottom")
+plots
+
+plots <- annotate_figure(plots, top = text_grob("Acetate excretion and absorption",
+                                                color = "black", face = "bold", size = 20))
+
+ggsave(plots, filename = 'Figure2_Rebuttal1.pdf', width = 12, height = 7, device = 'pdf')
+ggsave(plots, filename = 'Figure2_Rebuttal1.png', width = 12, height = 7, device = 'png')
+ggsave(plots, filename = 'Figure2_Rebuttal1.jpg', width = 12, height = 7, device = 'jpeg')
+
+
+##### Statistics for figure 3 #####
+# * SECONDARY OUTCOME *
+##### LMM glucose, compare BMI_class groups #####
+wo_na <- d_longGlucose %>% filter(Glucose != 'NA')
+wo_na <- as.data.frame(wo_na)
+
+# model 0 -> Time (spline), Condition, interaction between Time (spline) & BMI class
+m0 = lme(Glucose ~ ns(time, df = 3) * BMI_class, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # time BMI_class is significant 0.01
+
+intervals(m0)
+
+##### LMM insulin, compare BMI_class groups #####
+wo_na <- d_longGlucose %>% filter(Insulin != 'NA')
+wo_na <- as.data.frame(wo_na)
+
+# model 0 -> Time (spline), Condition, interaction between Time (spline) & BMI class
+m0 = lme(Insulin ~ ns(time, df = 3) * BMI_class, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # time BMI_class is significant 0.0011
+
+intervals(m0)
+
+##### LMM glucose, lean group #####
+# * PRIMARY OUTCOME *
+# doesn't work with missing values, remove them
+d_longGlucose_lean <- d_longGlucose %>% filter(BMI_class %in% 'Lean')
+d_longGlucose_metsyn <- d_longGlucose %>% filter(BMI_class %in% 'MetSyn')
+
+wo_na <- d_longGlucose_lean %>% filter(Glucose != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Glucose ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant
+
+# model 1 -> Time (spline) and Acetate group
+m1 = lme(Glucose ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is not significant
+
+# model 2 -> Time (spline), Condition, interaction between Time (spline) & Acetate group
+m2 = lme(Glucose ~ ns(time, df = 3) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time group interaction is not significant, sadly
+
+intervals(m2, level = 0.95, which = "fixed")
+
+# model 3 -> Time (spline), Condition, interaction between Time (spline) & Acetate group & order of interventions & BMI class
+m3 = lme(Glucose ~ ns(time, df = 3) * Condition + Group, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time group interaction is not significant, no carryover effect is observed
+
+intervals(m3, level = 0.95, which = "fixed")
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m4 = lme(Glucose ~ ns(time, df = 3) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # still, only time is significant
+
+# model 5 -> model 3 + interactions between Age and Time; and between Gender and Time
+m5 = lme(Glucose ~ ns(time, df = 3) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # still, only time is significant
+
+##### LMM glucose, metsyn group #####
+# * PRIMARY OUTCOME *
+wo_na <- d_longGlucose_metsyn %>% filter(Glucose != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Glucose ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(Glucose ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is trending: 0.0639
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(Glucose ~ ns(time, df = 3) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.9143
+
+intervals(m2, level = 0.95, which = "fixed")
+
+# model 3 -> Time (spline), Condition, interaction between Time (spline) & Acetate group & order of interventions & BMI class
+m3 = lme(Glucose ~ ns(time, df = 3) * Condition + Group, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time group interaction is not significant, sadly
+# No carryover effect
+
+intervals(m3, level = 0.95, which = "fixed")
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m4 = lme(Glucose ~ ns(time, df = 3) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.9154
+
+# model 5 -> model 3 + interactions between Age and Time; and between Gender and Time
+m5 = lme(Glucose ~ ns(time, df = 3) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition interaction is ns: 0.9159
+
+##### LMM glucose pooled #####
+wo_na <- d_longGlucose %>% filter(Glucose != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Glucose ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(Glucose ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is ns: 0.0953
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(Glucose ~ ns(time, df = 3) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.3525
+
+intervals(m2, level = 0.95, which = "fixed")
+
+# model 3 -> Time (spline), Condition, interaction between Time (spline) & Acetate group & order of interventions & BMI class
+m3 = lme(Glucose ~ ns(time, df = 3) * Condition + Group, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time group interaction is not significant, sadly
+# However, no carryover effect
+
+intervals(m3)
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m4 = lme(Glucose ~ ns(time, df = 3) * Condition * BMI_class, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.3532, neither is time condition group BMI_class: 0.1903
+
+intervals(m4)
+emmeans(m4, ~ BMI_class)
+
+# model 5 -> model 3 + interactions between Age and Time; and between Gender and Time
+m5 = lme(Glucose ~ ns(time, df = 3) * Condition * BMI_class + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition interaction is ns: 0.3215
+
+##### LMM insulin, use same file d_longGlucose, lean group #####
+# doesn't work with missing values, remove them
+d_longGlucose_lean <- d_longGlucose %>% filter(BMI_class %in% 'Lean')
+d_longGlucose_metsyn <- d_longGlucose %>% filter(BMI_class %in% 'MetSyn')
+
+wo_na <- d_longGlucose_lean %>% filter(Insulin != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Insulin ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant
+
+# model 1 -> Time (spline) and Acetate group
+m1 = lme(Insulin ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is significant 0.0141
+
+# model 2 -> Time (spline), Condition, interaction between Time (spline) & Acetate group
+m2 = lme(Insulin ~ ns(time, df = 3) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time group interaction is not significant, sadly, 0.0708
+
+intervals(m2, level = 0.95, which = "fixed")
+
+# model 3 -> Time (spline), Condition, interaction between Time (spline) & Acetate group & order of interventions & BMI class
+m3 = lme(Insulin ~ ns(time, df = 3) * Condition + Group, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is trending bus ns: 0.0623
+# however time condition group is not 0.2446
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m4 = lme(Insulin ~ ns(time, df = 3) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition is trendin 0.0637
+# time group is sign 0.0031
+
+intervals(m4, level = 0.95, which = "fixed")
+
+# model 5 -> model 3 + interactions between Age and Time; and between Gender and Time
+m5 = lme(Insulin ~ ns(time, df = 3) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition is trendin 0.0634
+# time group is sign 0.0031
+
+##### LMM insulin, metsyn group #####
+wo_na <- d_longGlucose_metsyn %>% filter(Insulin != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Insulin ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(Insulin ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is ns 0.4723
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(Insulin ~ ns(time, df = 3) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.8680
+
+intervals(m2, level = 0.95, which = "fixed")
+
+# model 3 -> Time (spline), Condition, interaction between Time (spline) & Acetate group & order of interventions & BMI class
+m3 = lme(Insulin ~ ns(time, df = 3) * Condition + Group, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is not significant, sadly: 0.4723
+# Carryover effect (time condition group) not present in MetSyn subset: 0.5246
+
+intervals(m3, level = 0.95, which = "fixed")
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m4 = lme(Insulin ~ ns(time, df = 3) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.8715
+
+# model 5 -> model 3 + interactions between Age and Time; and between Gender and Time
+m5 = lme(Insulin ~ ns(time, df = 3) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition interaction is ns: 0.8707
+
+##### LMM insulin pooled #####
+wo_na <- d_longGlucose %>% filter(Insulin != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(Insulin ~ ns(time, df = 3), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(Insulin ~ ns(time, df = 3) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is trending: 0.0562
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(Insulin ~ ns(time, df = 3) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.1755
+
+intervals(m2, level = 0.95, which = "fixed")
+
+# model 3 -> Time (spline), Condition, interaction between Time (spline) & Acetate group & order of interventions & BMI class
+m3 = lme(Insulin ~ ns(time, df = 3) * Condition + Group, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is not significant, sadly: 0.1719
+# Carryover effect not present
+
+intervals (m3)
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m4 = lme(Insulin ~ ns(time, df = 3) * Condition * BMI_class, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.1590, neither is time condition group BMI_class: 0.9465
+
+intervals(m4)
+emmeans(m4, ~ BMI_class)
+
+# model 5 -> model 3 + interactions between Age and Time; and between Gender and Time
+m5 = lme(Insulin ~ ns(time, df = 3) * Condition * BMI_class + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition interaction is ns: 0.1594
+
+
+##### Create figure 3 #####
+# * PRIMARY OUTCOME *
+##### Lineplot with errorbars voor glucose lean group ##### 
+pl1 <- ggplot(data=d_longGlucose_lean, aes(x = time, y = Glucose))+
+  geom_point(aes(x=time, y=Mean,
+                 col=Condition), size = 3)+
+  geom_line(data = subset(d_longGlucose_lean, Condition == 'Acetate'), aes(x=time, y=Mean, col=Condition), size = 1)+
+  geom_line(data = subset(d_longGlucose_lean, Condition == 'Placebo'), aes(x=time, y=Mean, col=Condition), size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_lean, Condition == 'Acetate'), aes(ymin = Mean_min_SD, ymax = Mean, col=Condition), width = 2, size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_lean, Condition == 'Placebo'), aes(ymin = Mean, ymax = Mean_plus_SD, col=Condition), width = 2, size = 1)+
+  scale_x_continuous(breaks=c(-15, 0, 10, 15, 20, 30, 60, 90, 120))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c(pal_nejm()(2)[2], pal_nejm()(2)[1]))+
+  labs(x='Time (min)', title='Glucose response upon SMMT lean group', y='Glucose (mmol/L)')+
+  theme_Publication()+
+  annotate("text", x=75, y=7.1, label = "p = 0.1486", fontface = 2)+
+  ylim(3.2, 8.1)+
+  theme(legend.position = 'right')
+pl1
+
+pl1 <- pl1 + theme(panel.background = element_blank())
+
+# Lineplot with errorbars voor glucose metsyn group
+pl2 <- ggplot(data=d_longGlucose_metsyn, aes(x = time, y = Glucose))+
+  geom_point(aes(x=time, y=Mean,
+                 col=Condition), size = 3)+
+  geom_line(data = subset(d_longGlucose_metsyn, Condition == 'Acetate'), aes(x=time, y=Mean, col=Condition), size = 1)+
+  geom_line(data = subset(d_longGlucose_metsyn, Condition == 'Placebo'), aes(x=time, y=Mean, col=Condition), size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_metsyn, Condition == 'Acetate'), aes(ymin = Mean_min_SD, ymax = Mean, col=Condition), width = 2, size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_metsyn, Condition == 'Placebo'), aes(ymin = Mean, ymax = Mean_plus_SD, col=Condition), width = 2, size = 1)+
+  scale_x_continuous(breaks=c(-15, 0, 10, 15, 20, 30, 60, 90, 120))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c("turquoise4", "hotpink4"))+
+  labs(x='Time (min)', title='Glucose response upon SMMT metsyn group', y='Glucose (mmol/L)')+
+  theme_Publication()+
+  annotate("text", x=75, y=7.1, label = "p = 0.9143", fontface = 2)+
+  ylim(3.2, 8.1)+
+  theme(legend.position = 'right')
+pl2
+
+pl2 <- pl2 + theme(panel.background = element_blank())
+
+# Lineplot with errorbars voor insuline lean group #
+pl3 <- ggplot(data=d_longGlucose_lean, aes(x = time, y = Insulin))+
+  geom_point(aes(x=time, y=Mean_Insulin,
+                 col=Condition), size = 3)+
+  geom_line(data = subset(d_longGlucose_lean, Condition == 'Acetate'), aes(x=time, y=Mean_Insulin, col=Condition), size = 1)+
+  geom_line(data = subset(d_longGlucose_lean, Condition == 'Placebo'), aes(x=time, y=Mean_Insulin, col=Condition), size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_lean, Condition == 'Acetate'), aes(ymin = Mean_Insulin, ymax = Mean_Insulin_plus_SD, col=Condition), width = 2, size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_lean, Condition == 'Placebo'), aes(ymin = Mean_Insulin_min_SD, ymax = Mean_Insulin, col=Condition), width = 2, size = 1)+
+  scale_x_continuous(breaks=c(-15, 0, 10, 15, 20, 30, 60, 90, 120))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c(pal_nejm()(2)[2], pal_nejm()(2)[1]))+
+  labs(x='Time (min)', title='Insulin response upon SMMT lean group', y='Insulin (pmol/L)')+
+  theme_Publication()+
+  annotate("text", x=75, y=400, label = "p = 0.0623", fontface = 2)+
+  ylim(0, 600)+
+  theme(legend.position = 'right')
+pl3
+
+pl3 <- pl3 + theme(panel.background = element_blank())
+
+# Lineplot with errorbars voor insuline metsyn group #
+pl4 <- ggplot(data=d_longGlucose_metsyn, aes(x = time, y = Insulin))+
+  geom_point(aes(x=time, y=Mean_Insulin,
+                 col=Condition), size = 3)+
+  geom_line(data = subset(d_longGlucose_metsyn, Condition == 'Acetate'), aes(x=time, y=Mean_Insulin, col=Condition), size = 1)+
+  geom_line(data = subset(d_longGlucose_metsyn, Condition == 'Placebo'), aes(x=time, y=Mean_Insulin, col=Condition), size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_metsyn, Condition == 'Acetate'), aes(ymin = Mean_Insulin, ymax = Mean_Insulin_plus_SD, col=Condition), width = 2, size = 1)+
+  geom_errorbar(data = subset(d_longGlucose_metsyn, Condition == 'Placebo'), aes(ymin = Mean_Insulin_min_SD, ymax = Mean_Insulin, col=Condition), width = 2, size = 1)+
+  scale_x_continuous(breaks=c(-15, 0, 10, 15, 20, 30, 60, 90, 120))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c("turquoise4", "hotpink4"))+
+  labs(x='Time (min)', title='Insulin response upon SMMT metsyn group', y='Insulin (pmol/L)')+
+  theme_Publication()+
+  annotate("text", x=75, y=550, label = "p = 0.4723", fontface = 2)+
+  ylim(0, 900)+
+  theme(legend.position = 'right')
+pl4
+
+pl4 <- pl4 + theme(panel.background = element_blank())
+
+plots <- ggarrange(pl1, pl2, pl3, pl4,
+                   labels = c("A", "B", "C", "D"),
+                   ncol = 2, nrow = 2, common.legend = FALSE, legend = "bottom")
+plots
+
+plots <- annotate_figure(plots, top = text_grob("Postprandial insulin response per BMI group",
+                                                color = "black", face = "bold", size = 20))
+
+getwd()
+ggsave(plots, filename = 'Figure3_Rebuttal1.png', width = 11, height = 9, device = 'png')
+ggsave(plots, filename = 'Figure3_Rebuttal1.jpg', width = 11, height = 9, device = 'jpg')
+ggsave(plots, filename = 'Figure3_Rebuttal1.pdf', width = 11, height = 9, device = 'pdf')
+
+##### Statistics for fMRI analyses #####
+# * SECONDARY OUTCOME *
+##### LMM ROI analyses pooled #####
+#FvsNF amygdala
+wo_na <- d_long %>% filter(FvsNF_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_amygdala ~ Condition * BMI_class,
+  random = ~ 1 | Subject,
+  data = wo_na,
+  method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1711
+
+#FvsNF caudate
+wo_na <- d_long %>% filter(FvsNF_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_caudate ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.5988
+
+#FvsNF putamen
+wo_na <- d_long %>% filter(FvsNF_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_putamen ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.7767
+
+#FvsNF insula
+wo_na <- d_long %>% filter(FvsNF_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_insula ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.7149
+
+#HCvsNF amygdala
+wo_na <- d_long %>% filter(HCvsNF_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_amygdala ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1445
+
+#HCvsNF caudate
+wo_na <- d_long %>% filter(HCvsNF_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_caudate ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.8418
+
+#HCvsNF putamen
+wo_na <- d_long %>% filter(HCvsNF_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_putamen ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is < 0.05, but ns after multiple comp corr 0.1058
+
+#HCvsNF insula
+wo_na <- d_long %>% filter(HCvsNF_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_insula ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2141
+
+#HCvsLC amygdala
+wo_na <- d_long %>% filter(HCvsLC_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_amygdala ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.3755
+
+#HCvsLC caudate
+wo_na <- d_long %>% filter(HCvsLC_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_caudate ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2095
+
+#HCvsLC putamen
+wo_na <- d_long %>% filter(HCvsLC_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_putamen ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is < 0.05, but ns after multiple comp corr 0.0211
+
+#HCvsLC insula
+wo_na <- d_long %>% filter(HCvsLC_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_insula ~ Condition * BMI_class,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1428
+
+##### Create supplementary table 2 #####
+##### LMM ROI analyses Lean #####
+#FvsNF amygdala
+wo_na <- d_long_lean %>% filter(FvsNF_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_amygdala ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition is ns: 0.2506
+
+#FvsNF caudate
+wo_na <- d_long_lean %>% filter(FvsNF_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_caudate ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is sign but not after correction for multipel comparisons: 0.0369
+
+#FvsNF putamen
+wo_na <- d_long_lean %>% filter(FvsNF_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_putamen ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2167
+
+#FvsNF insula
+wo_na <- d_long_lean %>% filter(FvsNF_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_insula ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.7149
+
+#HCvsNF amygdala
+wo_na <- d_long_lean %>% filter(HCvsNF_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_amygdala ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1445
+
+#HCvsNF caudate
+wo_na <- d_long_lean %>% filter(HCvsNF_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_caudate ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.8418
+
+#HCvsNF putamen
+wo_na <- d_long_lean %>% filter(HCvsNF_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_putamen ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is < 0.05, but ns after multiple comp corr 0.1058
+
+#HCvsNF insula
+wo_na <- d_long_lean %>% filter(HCvsNF_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_insula ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2141
+
+#HCvsLC amygdala
+wo_na <- d_long_lean %>% filter(HCvsLC_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_amygdala ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.3755
+
+#HCvsLC caudate
+wo_na <- d_long_lean %>% filter(HCvsLC_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_caudate ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2095
+
+#HCvsLC putamen
+wo_na <- d_long_lean %>% filter(HCvsLC_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_putamen ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is < 0.05, but ns after multiple comp corr 0.0211
+
+#HCvsLC insula
+wo_na <- d_long_lean %>% filter(HCvsLC_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_insula ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1428
+
+##### LMM ROI analyses MetSyn #####
+#FvsNF amygdala
+wo_na <- d_long_metsyn %>% filter(FvsNF_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_amygdala ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition is ns: 0.2506
+
+#FvsNF caudate
+wo_na <- d_long_metsyn %>% filter(FvsNF_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_caudate ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is sign but not after correction for multipel comparisons: 0.0369
+
+#FvsNF putamen
+wo_na <- d_long_metsyn %>% filter(FvsNF_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_putamen ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2167
+
+#FvsNF insula
+wo_na <- d_long_metsyn %>% filter(FvsNF_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(FvsNF_insula ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.7149
+
+#HCvsNF amygdala
+wo_na <- d_long_metsyn %>% filter(HCvsNF_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_amygdala ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1445
+
+#HCvsNF caudate
+wo_na <- d_long_metsyn %>% filter(HCvsNF_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_caudate ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.8418
+
+#HCvsNF putamen
+wo_na <- d_long_metsyn %>% filter(HCvsNF_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_putamen ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is < 0.05, but ns after multiple comp corr 0.1058
+
+#HCvsNF insula
+wo_na <- d_long_metsyn %>% filter(HCvsNF_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsNF_insula ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2141
+
+#HCvsLC amygdala
+wo_na <- d_long_metsyn %>% filter(HCvsLC_amygdala != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_amygdala ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.3755
+
+#HCvsLC caudate
+wo_na <- d_long_metsyn %>% filter(HCvsLC_caudate != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_caudate ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2095
+
+#HCvsLC putamen
+wo_na <- d_long_metsyn %>% filter(HCvsLC_putamen != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_putamen ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is < 0.05, but ns after multiple comp corr 0.0211
+
+#HCvsLC insula
+wo_na <- d_long_metsyn %>% filter(HCvsLC_insula != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(HCvsLC_insula ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.1428
+
+
+##### Statistics for Supplementary figure 4 #####
+##### LMM VAS hunger lean group #####
+# * PRIMARY OUTCOME *
+# doesn't work with missing values, remove them
+d_longVAS_lean <- d_longVAS %>% filter(BMI_class=='Lean')
+
+wo_na <- d_longVAS_lean %>% filter(VAS_hunger != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(VAS_hunger ~ ns(time, df = 2), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is slightly significant: 0.0366
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(VAS_hunger ~ ns(time, df = 2) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is sign: 0.0217
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(VAS_hunger ~ ns(time, df = 2) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.3207
+
+# model 3 -> model 2 + Gender & Age (as covariates)
+m3 = lme(VAS_hunger ~ ns(time, df = 2) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is ns: 0.3298
+
+# model 4 -> model 3 + interactions between Age and Time; and between Gender and Time
+m4 = lme(VAS_hunger ~ ns(time, df = 2) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.3298
+
+##### LMM metsyn group #####
+# doesn't work with missing values, remove them
+d_longVAS_metsyn <- d_longVAS %>% filter(BMI_class=='MetSyn')
+wo_na <- d_longVAS_metsyn %>% filter(VAS_hunger != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(VAS_hunger ~ ns(time, df = 2), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is super significant: 0.0091
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(VAS_hunger ~ ns(time, df = 2) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is trending: 0.054
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(VAS_hunger ~ ns(time, df = 2) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.1153
+
+# model 3 -> model 2 + Gender & Age (as covariates)
+m3 = lme(VAS_hunger ~ ns(time, df = 2) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is ns: 0.1199
+
+# model 4 -> model 3 + interactions between Age and Time; and between Gender and Time
+m4 = lme(VAS_hunger ~ ns(time, df = 2) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.1428
+
+##### LMM VAS hunger pooled #####
+wo_na <- d_longVAS %>% filter(VAS_hunger != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+# model 0 -> only Time (spline)
+m0 = lme(VAS_hunger ~ ns(time, df = 2), random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m0) # as expected, time is slightly significant: 0.0366
+
+# model 1 -> Time (spline) and Condition
+m1 = lme(VAS_hunger ~ ns(time, df = 2) + Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m1) # condition is sign: 0.0217
+
+# model 2 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group
+m2 = lme(VAS_hunger ~ ns(time, df = 2) * Condition, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m2) # time condition interaction is ns: 0.3207
+
+# model 3 -> Time (spline), Condition, and interaction between Time (spline) & Acetate group + BMI_class as covariate
+m3 = lme(VAS_hunger ~ ns(time, df = 2) * Condition * BMI_class, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m3) # time condition interaction is ns: 0.3207
+
+emmeans(m3, ~ BMI_class)
+
+# model 4 -> model 2 + Gender & Age (as covariates)
+m3 = lme(VAS_hunger ~ ns(time, df = 2) * Condition + Sexe + Age, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m4) # time condition interaction is ns: 0.3298
+
+# model 5 -> model 2 + interactions between Age and Time; and between Gender and Time
+m4 = lme(VAS_hunger ~ ns(time, df = 2) * Condition + Sexe + Age + Age:time + Sexe:time, random = ~ 1 | Subject, data = wo_na, method = 'ML')
+anova(m5) # time condition interaction is ns: 0.3298
+
+##### CLMM VAS hunger lean group, VAS as ordinal outcome instead of numeric #####
+# * PRIMARY OUTCOME *
+# doesn't work with missing values, remove them
+d_longVAS_lean <- d_longVAS %>% filter(BMI_class=='Lean')
+
+wo_na <- d_longVAS_lean %>% filter(VAS_hunger != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+wo_na$VAS_hunger <- ordered(wo_na$VAS_hunger)
+
+m0 <- clmm(
+  VAS_hunger ~ time + Condition + (1 | Subject),
+  data = wo_na
+)
+
+m1 <- clmm(
+  VAS_hunger ~ time * Condition + (1 | Subject),
+  data = wo_na
+)
+
+summary(m0)
+anova(m0, m1) # no significant difference between model with interaction term and basic model: 0.4591
+
+##### LMM VAS hunger metsyn group, VAS as ordinal outcome instead of numeric #####
+# * PRIMARY OUTCOME *
+# doesn't work with missing values, remove them
+d_longVAS_metsyn <- d_longVAS %>% filter(BMI_class=='MetSyn')
+
+wo_na <- d_longVAS_metsyn %>% filter(VAS_hunger != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+wo_na$VAS_hunger <- ordered(wo_na$VAS_hunger)
+
+m0 <- clmm(
+  VAS_hunger ~ time + Condition + (1 | Subject),
+  data = wo_na
+)
+
+m1 <- clmm(
+  VAS_hunger ~ time * Condition + (1 | Subject),
+  data = wo_na
+)
+
+summary(m0)
+anova(m0, m1) # no significant difference between model with interaction term and basic model, but trend: 0.07441
+
+##### Create Supplementary figure 4 #####
+##### Create line plots of VAS hunger score per condition lean group #####
+# Create accurate timepoints instead of 1, 2 and 3
+d_longVAS_lean <- d_longVAS %>% filter(BMI_class=='Lean')
+d_longVAS_lean$time[d_longVAS_lean$time =='1'] <- -90
+d_longVAS_lean$time <- as.numeric(d_longVAS_lean$time)
+d_longVAS_lean$time[d_longVAS_lean$time =='2'] <- -15
+d_longVAS_lean$time <- as.numeric(d_longVAS_lean$time)
+d_longVAS_lean$time[d_longVAS_lean$time =='3'] <- 15
+d_longVAS_lean$time <- as.numeric(d_longVAS_lean$time)
+d_longVAS_lean$time
+
+pl1 <- ggplot(data=d_longVAS_lean, aes(x = time, y = VAS_hunger))+
+  geom_point(aes(x=time, y=Mean,
+                 col=Condition), size = 3)+
+  geom_line(aes(x=time, y=Mean, col=Condition), size = 1.2)+
+  geom_errorbar(aes(ymin = Mean_min_SE, ymax = Mean_plus_SE, col=Condition), size = 0.8, width = 0.05)+
+  scale_x_continuous(breaks=c(-90, 0, -15, 15))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c(pal_nejm()(2)[2], pal_nejm()(2)[1]))+
+  labs(x='Timepoint (min)', title='Lean group', y = "")+
+  theme_Publication()+
+  annotate("text", x=2.4, y=5.5, label = "p = 0.46", fontface = 2)+
+  ylim(2, 6)+
+  theme(panel.grid.major.x = element_line(size = 0.75, color='grey'))+
+  theme(legend.position = 'right')+
+  theme(axis.text=element_text(size=20),
+        axis.title.x=element_text(size=15,face="bold"),
+        axis.title.y=element_text(size=20,face="bold"))
+pl1
+
+pl1 <- pl1 + theme(panel.background = element_blank())
+
+d_longVAS_metsyn <- d_longVAS %>% filter(BMI_class=='MetSyn')
+d_longVAS_metsyn$time[d_longVAS_metsyn$time =='1'] <- -90
+d_longVAS_metsyn$time <- as.numeric(d_longVAS_metsyn$time)
+d_longVAS_metsyn$time[d_longVAS_metsyn$time =='2'] <- -15
+d_longVAS_metsyn$time <- as.numeric(d_longVAS_metsyn$time)
+d_longVAS_metsyn$time[d_longVAS_metsyn$time =='3'] <- 15
+d_longVAS_metsyn$time <- as.numeric(d_longVAS_metsyn$time)
+d_longVAS_metsyn$time
+
+pl2 <- ggplot(data=d_longVAS_metsyn, aes(x = time, y = VAS_hunger))+
+  geom_point(aes(x=time, y=Mean,
+                 col=Condition), size = 3)+
+  geom_line(aes(x=time, y=Mean, col=Condition), size = 1.2)+
+  geom_errorbar(aes(ymin = Mean_min_SE, ymax = Mean_plus_SE, col=Condition), size = 0.8, width = 0.05)+
+  scale_x_continuous(breaks=c(-90, 0, -15, 15))+
+  scale_color_manual(labels = c("Acetate", "Placebo"), values = c("turquoise4", "hotpink4"))+
+  labs(x='Timepoint (min)', title='Metsyn group', y = "")+
+  theme_Publication()+
+  annotate("text", x=2.4, y=5.5, label = "p = 0.074", fontface = 2)+
+  ylim(2, 6)+
+  theme(panel.grid.major.x = element_line(size = 0.75, color='grey'))+
+  theme(legend.position = 'right')+
+  theme(axis.text=element_text(size=20),
+        axis.title.x=element_text(size=15,face="bold"),
+        axis.title.y=element_text(size=20,face="bold"))
+pl2
+
+pl2 <- pl2 + theme(panel.background = element_blank())
+
+plots <- ggarrange(pl1, pl2,
+                   labels = c("A", "B"), 
+                   ncol = 2, nrow = 1, common.legend = FALSE, legend = "bottom")
+plots
+
+plots <- annotate_figure(plots, top = text_grob("VAS hunger score upon SMMT per BMI group",
+                                                color = "black", face = "bold", size = 20))
+
+ggsave(plots, filename = 'Supplementary_Figure4_Rebuttal1.pdf', width = 8, height = 4, device = 'pdf')
+ggsave(plots, filename = 'Supplementary_Figure4_Rebuttal1.png', width = 8, height = 4, device = 'png')
+ggsave(plots, filename = 'Supplementary_Figure4_Rebuttal1.jpg', width = 8, height = 4, device = 'jpeg')
+
+
+##### EXPLORATORY OUTCOMES #####
+#Fasted glucose carryover effect
+wo_na <- d_long_lean %>% filter(Fasted_insulin != 'NA')
+wo_na <- as.data.frame(wo_na) # doesn't work with tibble, make into DF
+
+m1 <- lme(Fasted_insulin ~ Condition,
+          random = ~ 1 | Subject,
+          data = wo_na,
+          method = "ML")
+
+anova(m1) # Condition * BMI class is ns: 0.2095
